@@ -7,34 +7,79 @@ import Control.Monad ( join )
 import Data.List ( delete, group, intercalate, isSuffixOf, sort )
 
 
+newtype Prod_ = Prod_ [Expr] deriving (Eq, Show)
+-- newtype Sum_ = Sum_ [Expr] deriving (Eq, Show)
+
 data Expr = Const Rational
-          | E
           | Neg Expr
-          | Pow Expr Expr
-          | Prod [Expr]
+          -- | Pow Expr Expr
+          -- | Prod Prod_
           | Sum [Expr]
           | Var
-          deriving (Eq, Ord, Show)
+          deriving (Eq, Show)
+
+
+-- Predicates
+sump :: Expr -> Bool
+sump (Sum _) = True
+sump _ = False
+
+
+
+-- instance Monoid Sum_ where
+--   mempty = Sum_ [Const 0]
+--   (Sum_ xs) `mappend` (Sum_ ys) = Sum_ $ xs ++ ys
+
+
+-- sumex :: [Expr] -> Expr
+-- sumex = Sum . Sum_
+
+
+-- prodex
 
 
 ---------------------------
 -- Derive
 ---------------------------
 
-base :: Expr -> Expr
-base (Const _)   = Const 0
-base (Var)       = Const 1
--- base (Diff a b)  = Diff (derive a) (derive b)
-base (Sum (x:[])) = derive x
-base (Sum xs)    = Sum (map derive xs)
-base (Pow Var a) = Prod [ a, Pow Var (Sum [ a, (Neg (Const 1)) ] ) ]
-base (Prod (x:[])) = derive x
-base (Prod (x:xs)) = Sum [ lhs, rhs ]
-  where lhs = Prod $ (derive x) : xs
-        rhs = Prod $         x  : [derive $ Prod xs]
+derive :: Expr -> Expr
+derive (Const _) = Const 0
+derive (Neg x) = Neg $ derive x
+derive (Sum xs) = Sum $ map derive xs
+-- derive (Sum (Sum_ xs)) = Sum $ Sum_ $ map derive xsp
+derive Var = Const 1
+
+select :: (Expr -> Bool) -> [Expr] -> ([Expr], [Expr])
+select p = foldl f ([], [])
+  where f (first, second) x
+          | p x       = (x:first,   second)
+          | otherwise = (  first, x:second)
+  --   f (consts, other) c@(Const _) = (c:consts, other)
+  --       f (consts, other) x = (consts, x:other)
+
+  -- foldl f [Const 0] xs
+  -- where f (Const a : ys) (Const b) = Const (a + b) : ys
+  --       f (y:ys) x = y:x:ys
+
+
+simplify :: Expr -> Expr
+-- simplify (Sum xs) = 
+simplify (Sum xs) = g $ Sum $ foldl f [Const 0] xs
+  where f (Const a : ys) (Const b) = Const (a + b) : ys
+        f (y:ys) x = y:x:ys
+        g (Sum [x]) = x
+        g x = x
+
+-- derive (Pow Var a) = Prod [ a, Pow Var (Sum [ a, (Neg (Const 1)) ] ) ]
+-- derive (Prod (x:[])) = derive x
+-- derive (Prod (x:xs)) = Sum [ lhs, rhs ]
+--   where lhs = Prod $ (derive x) : xs
+--         rhs = Prod $         x  : [derive $ Prod xs]
 
 -- base (Prod a b)  = Sum [(Prod (derive a) b), (Prod a (derive b))]
 
+
+{-
 
 derive :: Expr -> Expr
 derive = simplify . base
@@ -134,3 +179,5 @@ ugly :: Rational -> String
 ugly a = if isSuffixOf ".0" s then d else show a
   where s = show (fromRational a :: Float)
         d = (reverse . drop 2 . reverse) s
+
+-}
